@@ -40,6 +40,7 @@ Mesh fromAssimpMesh(const aiMesh* mesh, const aiScene* scene, const std::filesys
 	std::vector<Vertex3D> vertices;
 
 	for (size_t i{ 0 }; i < mesh->mNumVertices; i++) {
+		// from assimp 
 		auto& meshVertex{ mesh->mVertices[i] };
 		auto& texCoord{ mesh->mTextureCoords[0][i] };
 		auto& normal{ mesh->mNormals[i] };
@@ -49,8 +50,19 @@ Mesh fromAssimpMesh(const aiMesh* mesh, const aiScene* scene, const std::filesys
 		// texture u/v (x/y), and normal x/y/z, in that order.
 		// Then push_back the Vertex3D into the vertice list.
 
+		Vertex3D vertex;
+		vertex.x = meshVertex.x;
+		vertex.y = meshVertex.y;
+		vertex.z = meshVertex.z;
 
+		vertex.u = texCoord.x;
+		vertex.v = texCoord.y;
 
+		vertex.nx = normal.x;
+		vertex.ny = normal.y;
+		vertex.nz = normal.z;
+
+		vertices.push_back(vertex);
 	}
 
 	std::vector<uint32_t> faces;

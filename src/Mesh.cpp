@@ -38,18 +38,17 @@ Mesh::Mesh(const std::vector<Vertex3D> &vertices, const std::vector<uint32_t> &f
 	// Copy the contents of the vertices list to the buffer that lives on the GPU.
 	glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex3D), &vertices[0], GL_STATIC_DRAW);
 
+	// attribute 0: position (x, y, z)
+	glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(Vertex3D), 0); 
+	glEnableVertexAttribArray(0);
 
-	// TODO: use glVertexAttribPointer and glEnableVertexAttribArray to inform OpenGL about our
-	// vertex attributes. Attribute 0 is position (3 floats), 1 is texture coords (2 floats), and 
-	// 2 is normal (3 floats), 
-	//glVertexAttribPointer(0, ...);
-	//glEnableVertexAttribArray(0);
-	//glVertexAttribPointer(1, ...);
-	//glEnableVertexAttribArray(1);
-	//glVertexAttribPointer(2, ...);
-	//glEnableVertexAttribArray(2);
+	// attribute 1: texture coordinate (u, v)
+	glVertexAttribPointer(1, 2, GL_FLOAT, false, sizeof(Vertex3D), (void*)12);
+	glEnableVertexAttribArray(1);
 
-
+	// attribute 2: normal (nx, ny, nz)
+	glVertexAttribPointer(2, 3, GL_FLOAT, false, sizeof(Vertex3D), (void*)20);
+	glEnableVertexAttribArray(2);
 
 	// Generate a second buffer, to store the indices of each triangle in the mesh.
 	uint32_t ebo;

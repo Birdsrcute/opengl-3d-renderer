@@ -26,7 +26,7 @@ void SceneObject::drawObjectRecursive(const glm::mat4& parentModel, ShaderProgra
 	// At the moment, we assume that localModel == trueModel, which is only true for the root 
 	// of a hierarchy. So this code only draws a mesh correctly if it has no children at all.
 
-	glm::mat4 trueModel{ localModel };
+	glm::mat4 trueModel{ parentModel *  localModel };
 	// TODO: you must change the calculation above, so that parentModel is combined with localModel to 
 	// make trueModel. We want localModel's transformations to happen BEFORE parentModel's.
 	program.setUniform("model", trueModel);
@@ -40,6 +40,10 @@ void SceneObject::drawObjectRecursive(const glm::mat4& parentModel, ShaderProgra
 	// TODO: to render the rest of the hierarchy, you must loop through each element of "children",
 	// and have them render themselves recursively. The parent model matrix for your children is your own
 	// true model matrix.
+
+	for (auto& child : children) {
+		child.drawObjectRecursive(trueModel, program);
+	}
 
 
 }
