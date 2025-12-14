@@ -165,35 +165,48 @@ Scene lovebird() {
 }
 
 Scene projectScene() {
-	Scene scene{ texturingShader() };
+	Scene scene{ phongLightingShader() };
+
+	float s = 0.01f;
 
 	auto lovebird{ assimpLoad("models/lovebird/lovebird_body.fbx", true) };
-	lovebird.position = glm::vec3{ 0, -0.7, 0 };
-	lovebird.scale = glm::vec3{ 0.001, 0.001, 0.001 };
+	lovebird.position = glm::vec3{ 0, 0, 0 };
+	lovebird.scale = glm::vec3{ s, s, s };
 
-	auto wing_L{ assimpLoad("models/lovebird/lovebird_wing_L.fbx", true) };
-	lovebird.children.push_back(std::move(wing_L));
+	auto hinge_wing_L{ assimpLoad("models/lovebird/hinge_wing_L.fbx", true) };
+	hinge_wing_L.center = glm::vec3{ 75.0f, 250.0f, 65.0f };
+	lovebird.children.push_back(std::move(hinge_wing_L));
+	
 
-	auto wing_R{ assimpLoad("models/lovebird/lovebird_wing_R.fbx", true) };
-	lovebird.children.push_back(std::move(wing_R));
+	auto hinge_wing_R{ assimpLoad("models/lovebird/hinge_wing_R.fbx", true) };
+	hinge_wing_R.center = glm::vec3{ -75.0f, 250.0f, 65.0f };
+	lovebird.children.push_back(std::move(hinge_wing_R));
+
+	/*
+	auto test{ assimpLoad("models/cube.obj", true) };
+	
+	test.scale = glm::vec3{ 50.0f, 50.0f, 50.0f };
+	test.position = glm::vec3{ 75.0f, 250.0f, 65.0f };      // start at bird origin
+	lovebird.children.push_back(std::move(test));
+	*/
 
 	// Move the lovebird into the scene list.
 	scene.objects.push_back(std::move(lovebird));
 
-	// load the city
+	// load city
 	auto city{ assimpLoad("models/city/city_scaled.fbx", true) };
 	city.position = glm::vec3{ 0, -0.7, 0 };
-	city.scale = glm::vec3{ 0.03, 0.03, 0.03 };
+	city.scale = glm::vec3{ 0.04, 0.04, 0.04 };
 
 	// Move the city into the scene list.
 	scene.objects.push_back(std::move(city));
 
-	// load the city
+	// load car
 	auto car1{ assimpLoad("models/cars/car_1.fbx", true) };
 	car1.position = glm::vec3{ 0, -0.7, 0 };
 	car1.scale = glm::vec3{ 0.03, 0.03, 0.03 };
 
-	// Move the city into the scene list.
+	// Move the car into the scene list.
 	scene.objects.push_back(std::move(car1));
 
 	return scene;
@@ -230,6 +243,34 @@ int main() {
 	// Activate the shader program.
 	myScene.program.activate();
 
+	// ---- Lighting uniforms ----
+	myScene.program.setUniform("ambientColor", glm::vec3(0.2f, 0.2f, 0.2f));
+
+	// Direction the light points * toward * the scene
+	myScene.program.setUniform("directionalLight",
+		glm::normalize(glm::vec3(-1.0f, -1.0f, -0.5f)));
+
+	myScene.program.setUniform("directionalColor",
+		glm::vec3(1.0f, 1.0f, 1.0f));
+
+	// ---- Material: (ka, kd, ks, shininess) ----
+	myScene.program.setUniform("material",
+		glm::vec4(
+			0.2f,   // ambient strength
+			0.8f,   // diffuse strength
+			0.4f,   // specular strength
+			32.0f   // shininess
+		)
+	);
+
+	myScene.program.setUniform("attenuationValues",
+		glm::vec3(
+			1.0f,    // constant
+			0.09f,   // linear
+			0.032f   // quadratic
+		)
+	);
+
 	// Ready, set, go!
 	bool running{ true };
 	sf::Clock c;
@@ -237,14 +278,14 @@ int main() {
 	// Set background color
 	glClearColor(0.52f, 0.73f, 0.98f, 1.0f);  // sky blue
 
-	glm::vec3 cameraPos{ glm::vec3{ 0, 50, 70 } };
-	glm::mat4 camera{ glm::lookAt(cameraPos, glm::vec3{ 0, 0, 0 }, glm::vec3{ 0, 1, 0 }) };
-	glm::mat4 perspective{ glm::perspective(glm::radians(45.0f), static_cast<float>(window.getSize().x) / window.getSize().y, 0.1f, 200.0f) };
+	glm::vec3 cameraPos{ glm::vec3{ 0, 50, 70 } };	// camera position
+	glm::mat4 camera{ glm::lookAt(cameraPos, glm::vec3{ 0, 0, 0 }, glm::vec3{ 0, 1, 0 }) };	// camera matrix
+	glm::mat4 perspective{ glm::perspective(glm::radians(45.0f), static_cast<float>(window.getSize().x) / window.getSize().y, 0.1f, 200.0f) };  // perspective matrix
 	
 	glm::vec3 target{ 0.0f, 0.0f, 0.0f };   // where camera looks at
 
-	bool isFlying = false;
-
+	bool isFlying = false;	// state 
+	
 	auto last{ c.getElapsedTime() };
 	while (window.isOpen()) {
 
@@ -255,14 +296,13 @@ int main() {
 			}
 		}
 
+		// diff measures frame length
 		auto now{ c.getElapsedTime() };
 		auto diff{ now - last };
 		last = now;
 
-		// speed to move the camera
-		float speed = 20.0f * diff.asSeconds();
-		// speed to rotate the camera
-		float rotSpeed = 1.0f * diff.asSeconds();
+		float camSpeed = 30.0f * diff.asSeconds();	// speed camera moves
+		float camRotSpeed = 1.0f * diff.asSeconds();	// speed camera rotates
 
 		// panning the camera
 		// must define a forward direction relative to the ground plane & move where the camera looks at
@@ -275,49 +315,50 @@ int main() {
 		// camera movement (WASD)
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::W)) {
 			// move the camera a small amount in the direction that points to the right
-			cameraPos += fwdFlat * speed;
-			target += fwdFlat * speed;
+			cameraPos += fwdFlat * camSpeed;
+			target += fwdFlat * camSpeed;
 		}
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::A)) {
-			cameraPos -= rightFlat * speed;
-			target -= rightFlat * speed;
+			cameraPos -= rightFlat * camSpeed;
+			target -= rightFlat * camSpeed;
 		}
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::S)) {
-			cameraPos -= fwdFlat * speed;
-			target -= fwdFlat * speed;
+			cameraPos -= fwdFlat * camSpeed;
+			target -= fwdFlat * camSpeed;
 		}
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::D)) {
-			cameraPos += rightFlat * speed;
-			target += rightFlat * speed;
+			cameraPos += rightFlat * camSpeed;
+			target += rightFlat * camSpeed;
 		}
 
-		// Rotating the camera = rotating lookDir (vector from target to camera) around the target
+		// Rotating the camera = rotating the vector from target to camera around the target
 		float angle = 0.0f;
-
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::Q)) {
-			angle += rotSpeed;
+			angle += camRotSpeed;
 		}
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::E)) {
-			angle -= rotSpeed;
+			angle -= camRotSpeed;
 		}
+
+		// if camera angle was changed, then change cameraPos
 		if (angle != 0.0f) {
-			// 1. get offset
 			glm::vec3 offset = cameraPos - target;
 
 			// 2. rotate offset around world up (Y)
 			glm::mat4 R = glm::rotate(glm::mat4(1.0f), angle, glm::vec3{0,1,0});
 			offset = glm::vec3(R * glm::vec4(offset, 0.0f));
-
-			// 3. apply back
 			cameraPos = target + offset;
 		}
 
-		// bird movement: flying (y axis) and moving (x & z axis)
-		
-		// direction that the bird is moving
+		// used to detect movement for bird orientation
 		glm::vec3 moveDir(0.0f);
+		
+		float birdSpeed;
 
-		// move relative to the camera 
+		if (isFlying) { birdSpeed = 30.0f * diff.asSeconds(); }
+		else { birdSpeed = 10.0f * diff.asSeconds(); }
+
+		// bird movement relative to the camera: moving (x & z axis only)
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::Up)) {
 			moveDir += fwdFlat;
 		}
@@ -331,13 +372,12 @@ int main() {
 			moveDir += rightFlat;
 		}
 
-		// if there is movement, move the bird
+		// if there is movement, move the bird & face correct direction
 		if (glm::length(moveDir) > 0.0001f) {
 			// normalize so diagonal speed is consistent
 			moveDir = glm::normalize(moveDir);
 
-			float birdSpeed = 10.0f;
-			firstObject.position += moveDir * (birdSpeed * diff.asSeconds());
+			firstObject.position += moveDir * birdSpeed;
 
 			// make the bird face movement direction
 			float yaw = std::atan2(moveDir.x, moveDir.z);
@@ -345,71 +385,55 @@ int main() {
 		}
 
 		// making the bird fly
-		const float groundY = -0.7f; // same as your initial bird position
-		float flySpeed = 6.0f;
-
-		// flying input
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::Space)) {
-			firstObject.position.y += flySpeed * diff.asSeconds();
-		}
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::LShift)) {
-			firstObject.position.y -= flySpeed * diff.asSeconds();
-		}
+		const float groundY = 0.0f; // same as your initial bird position
+		float flySpeed = 6.0f * diff.asSeconds();
 
 		// adjust position in y-axis if flying
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::Space)) {
-			firstObject.position.y += flySpeed * diff.asSeconds();
+			firstObject.position.y += flySpeed;
 		}
-
-		if (firstObject.position.y > 0) { isFlying = true; }
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::LShift)) {
-			if (isFlying && firstObject.position.y != 0) {
-				firstObject.position.y -= flySpeed * diff.asSeconds();
-			}
+			firstObject.position.y -= flySpeed;
 		}
 
-		// clamp so it can never go below ground
+		// clamp so bird can never go below ground
 		if (firstObject.position.y < groundY) firstObject.position.y = groundY;
 
 		// bird is flying if its off the ground
-		bool isFlying = firstObject.position.y > groundY + 0.001f;
-
-		// flap only when flying
+		if (firstObject.position.y > groundY + 0.001f) { isFlying = true; }
+		else { isFlying = false; }
+		
+		// keep track of time bird flaps wings
 		static float flapTime = 0.0f;
+
+		static float spread = glm::radians(80.0f);   // keeps wings away from body 
+		static float amp = glm::radians(40.0f);   // bigger flap 
+
 		if (isFlying) {
 			flapTime += diff.asSeconds();
-			float flapRad = std::sin(flapTime * 12.0f) * glm::radians(45.0f);
+			float flap = std::sin(flapTime * 30.0f) * amp;
 
-			firstObject.children[1].orientation.y = +flapRad;
-			firstObject.children[2].orientation.y = -flapRad;
+			// Y-axis flap on the wings (NOT the body)
+			firstObject.children[1].orientation.y = -spread + flap;
+			firstObject.children[2].orientation.y = spread - flap;
 		}
 		else {
 			flapTime = 0.0f;
 			firstObject.children[1].orientation.y = 0.0f;
 			firstObject.children[2].orientation.y = 0.0f;
 		}
-		
-
 
 
 #ifdef LOG_FPS
 		// FPS calculation.
 		std::cout << 1 / diff.asSeconds() << " FPS " << std::endl;
 #endif
-		//glm::mat4 perspective{ glm::perspective(glm::radians(45.0f), static_cast<float>(window.getSize().x) / window.getSize().y, 0.1f, 200.0f) };
-		//glm::vec3 cameraPos{ glm::vec3{ 0, 50, 70 } };
 
 		glm::mat4 camera{ glm::lookAt(cameraPos, target, glm::vec3{ 0, 1, 0 }) }; // cam
 
 		myScene.program.setUniform("view", camera);
 		myScene.program.setUniform("projection", perspective);
 		myScene.program.setUniform("cameraPos", cameraPos);
-
-		// Rotate the boat and the tiger.
-		//firstObject.orientation.y += 0.001;
-		//firstObject.children[1].orientation.z += 0.001;
-
-
 		
 		// Clear the OpenGL "context".
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
