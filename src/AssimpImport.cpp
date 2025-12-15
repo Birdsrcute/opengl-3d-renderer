@@ -45,6 +45,10 @@ Mesh fromAssimpMesh(const aiMesh* mesh, const aiScene* scene, const std::filesys
 		auto& texCoord{ mesh->mTextureCoords[0][i] };
 		auto& normal{ mesh->mNormals[i] };
 
+		// load in tangent for the normals (aiVector3D)
+		auto& tangent{ mesh->mTangents[i] };
+		auto& b = mesh->mBitangents[i];
+
 		// TODO: construct a Vertex3D object using this assimp node's data, referenced
 		// with the variables above. A Vertex3D is constructed with a position x/y/z,  
 		// texture u/v (x/y), and normal x/y/z, in that order.
@@ -62,6 +66,15 @@ Mesh fromAssimpMesh(const aiMesh* mesh, const aiScene* scene, const std::filesys
 		vertex.ny = normal.y;
 		vertex.nz = normal.z;
 
+		vertex.tx = tangent.x;
+		vertex.ty = tangent.y;
+		vertex.tz = tangent.z;
+
+		// handedness (+1 or -1)
+		//aiVector3D c = normal ^ tangent;           // cross(n, t)
+		//vertex.tw = (c * b < 0.0f) ? -1.0f : 1.0f; // dot(c, b)
+		
+	
 		vertices.push_back(vertex);
 	}
 
@@ -86,13 +99,13 @@ Mesh fromAssimpMesh(const aiMesh* mesh, const aiScene* scene, const std::filesys
 			loadMaterialTextures(material, aiTextureType_SPECULAR, "specMap", modelPath, loadedTextures)
 		};
 		textures.insert(textures.end(), specularMaps.begin(), specularMaps.end());
-
+		/*
 		std::vector<Texture> normalMaps{
 			loadMaterialTextures(material, aiTextureType_HEIGHT, "normalMap", modelPath, loadedTextures)
 		};
 		textures.insert(textures.end(), normalMaps.begin(), normalMaps.end());
-
-		normalMaps = loadMaterialTextures(material, aiTextureType_NORMALS, "normalMap", modelPath, loadedTextures);
+		*/
+		std::vector<Texture> normalMaps = loadMaterialTextures(material, aiTextureType_NORMALS, "normalMap", modelPath, loadedTextures);
 		textures.insert(textures.end(), normalMaps.begin(), normalMaps.end());
 	}
 

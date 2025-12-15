@@ -38,6 +38,8 @@ public:
 	// Some objects from Assimp imports have a "name" field, useful for debugging.
 	std::string name{};
 
+	bool hasNormalMap;
+
 	// Construct a 4x4 model matrix from the object's position, orientation, scale, center, and base transform.
 	glm::mat4 buildModelMatrix() const;
 	// Trigger an OpenGL rendering of the object, including its mesh and all its child objects.

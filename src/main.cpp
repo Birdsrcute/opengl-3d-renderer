@@ -243,34 +243,6 @@ int main() {
 	// Activate the shader program.
 	myScene.program.activate();
 
-	// ---- Lighting uniforms ----
-	myScene.program.setUniform("ambientColor", glm::vec3(0.2f, 0.2f, 0.2f));
-
-	// Direction the light points * toward * the scene
-	myScene.program.setUniform("directionalLight",
-		glm::normalize(glm::vec3(-1.0f, -1.0f, -0.5f)));
-
-	myScene.program.setUniform("directionalColor",
-		glm::vec3(1.0f, 1.0f, 1.0f));
-
-	// ---- Material: (ka, kd, ks, shininess) ----
-	myScene.program.setUniform("material",
-		glm::vec4(
-			0.2f,   // ambient strength
-			0.8f,   // diffuse strength
-			0.4f,   // specular strength
-			32.0f   // shininess
-		)
-	);
-
-	myScene.program.setUniform("attenuationValues",
-		glm::vec3(
-			1.0f,    // constant
-			0.09f,   // linear
-			0.032f   // quadratic
-		)
-	);
-
 	// Ready, set, go!
 	bool running{ true };
 	sf::Clock c;
@@ -284,7 +256,10 @@ int main() {
 	
 	glm::vec3 target{ 0.0f, 0.0f, 0.0f };   // where camera looks at
 
-	bool isFlying = false;	// state 
+	// states
+	bool isFlying = false;	
+	bool isNight = false;
+	bool nWasPressed = false;
 	
 	auto last{ c.getElapsedTime() };
 	while (window.isOpen()) {
@@ -300,6 +275,14 @@ int main() {
 		auto now{ c.getElapsedTime() };
 		auto diff{ now - last };
 		last = now;
+
+		bool nIsPressed = sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::N);
+
+		if (nIsPressed && !nWasPressed) {
+			isNight = !isNight;   // TOGGLE
+		}
+
+		nWasPressed = nIsPressed;
 
 		float camSpeed = 30.0f * diff.asSeconds();	// speed camera moves
 		float camRotSpeed = 1.0f * diff.asSeconds();	// speed camera rotates
@@ -434,11 +417,91 @@ int main() {
 		myScene.program.setUniform("view", camera);
 		myScene.program.setUniform("projection", perspective);
 		myScene.program.setUniform("cameraPos", cameraPos);
+
+		
+		if (isNight) {
+			// ---- Lighting uniforms ----
+			myScene.program.setUniform("ambientColor", glm::vec3(0.1f, 0.2f, 0.2f));
+
+			// Direction the light points * toward * the scene
+			myScene.program.setUniform("directionalLight",
+				glm::normalize(glm::vec3(-0.3f, -1.0f, -0.3f)));
+
+			myScene.program.setUniform("directionalColor",
+				glm::vec3(1.0f, 1.0f, 1.0f));
+
+			// ---- Material: (ka, kd, ks, shininess) ----
+			myScene.program.setUniform("material",
+				glm::vec4(
+					1.0f,   // ambient strength
+					0.8f,   // diffuse strength
+					0.4f,   // specular strength
+					1.0f   // shininess
+				)
+			);
+
+			myScene.program.setUniform("attenuationValues",
+				glm::vec3(
+					1.0f,    // constant
+					0.09f,   // linear
+					0.032f   // quadratic
+				)
+			);
+
+			myScene.program.setUniform("lightPosition",
+				glm::vec3(
+					5.0f,
+					0.0f,
+					0.0f
+				)
+			);
+		}
+		else {
+			// ---- Lighting uniforms ----
+			myScene.program.setUniform("ambientColor", glm::vec3(0.15f, 0.15f, 0.15f));
+
+			// Direction the light points * toward * the scene
+			myScene.program.setUniform("directionalLight",
+				glm::normalize(glm::vec3(-0.35f, -0.75f, -0.55f)));
+
+			myScene.program.setUniform("directionalColor",
+				glm::vec3(1.0f, 0.98f, 0.92f));
+
+			// ---- Material: (ka, kd, ks, shininess) ----
+			myScene.program.setUniform("material",
+				glm::vec4(
+					0.5f,   // ambient strength
+					0.8f,   // diffuse strength
+					0.4f,   // specular strength
+					1.0f   // shininess
+				)
+			);
+
+			myScene.program.setUniform("attenuationValues",
+				glm::vec3(
+					1.0f,    // constant
+					0.045f,   // linear
+					0.0075f   // quadratic
+				)
+			);
+
+			myScene.program.setUniform("lightPosition",
+				glm::vec3(
+					5.0f,
+					5.0f,
+					5.0f
+				)
+			);
+		}
+		
+		firstObject.hasNormalMap = false;
+		secondObject.hasNormalMap = true;
 		
 		// Clear the OpenGL "context".
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		// Render the scene objects.
 		for (auto& o : myScene.objects) {
+			myScene.program.setUniform("hasNormalMap", o.hasNormalMap);
 			o.drawObject(myScene.program);
 		}
 		window.display();

@@ -50,6 +50,10 @@ Mesh::Mesh(const std::vector<Vertex3D> &vertices, const std::vector<uint32_t> &f
 	glVertexAttribPointer(2, 3, GL_FLOAT, false, sizeof(Vertex3D), (void*)20);
 	glEnableVertexAttribArray(2);
 
+	// attribute 3: tangent (tx, ty, tz, tw)
+	glVertexAttribPointer(3, 3, GL_FLOAT, false, sizeof(Vertex3D), (void*)32);
+	glEnableVertexAttribArray(3);
+
 	// Generate a second buffer, to store the indices of each triangle in the mesh.
 	uint32_t ebo;
 	glGenBuffers(1, &ebo);
@@ -64,7 +68,7 @@ void Mesh::drawMesh(ShaderProgram& program) const {
 	for (uint32_t i{ 0 }; i < textures.size(); ++i) {
 		glActiveTexture(GL_TEXTURE0 + i);
 		glBindTexture(GL_TEXTURE_2D, textures[i].textureId);
-		program.setUniform(textures[i].samplerName, 0);
+		program.setUniform(textures[i].samplerName, (int)i);
 	}
 	
 	glBindVertexArray(vao);

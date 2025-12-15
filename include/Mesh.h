@@ -14,6 +14,11 @@ struct Vertex3D {
 	float nx;
 	float ny;
 	float nz;
+
+	float tx;
+	float ty;
+	float tz;
+	//float tw;
 };
 
 struct Mesh {
