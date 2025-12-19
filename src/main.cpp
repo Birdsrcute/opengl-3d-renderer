@@ -64,6 +64,18 @@ ShaderProgram texturingShader() {
 	return shader;
 }
 
+ShaderProgram clipSpaceNoLightingProgramShader() {
+	ShaderProgram shader{};
+	try {
+		shader.load("shaders/minimap_clip.vert", "shaders/minimap_circle.frag");
+	}
+	catch (std::runtime_error& e) {
+		std::cout << "ERROR: " << e.what() << std::endl;
+		exit(1);
+	}
+	return shader;
+}
+
 /**
  * @brief Loads an image from the given path into an OpenGL texture.
  */
@@ -212,7 +224,12 @@ Scene projectScene() {
 	return scene;
 }
 
-
+void renderScene(Scene& myScene, ShaderProgram& program) {
+	for (auto& o : myScene.objects) {
+		myScene.program.setUniform("hasNormalMap", o.hasNormalMap);
+		o.drawObject(myScene.program);
+	}
+}
 
 int main() {
 
@@ -236,24 +253,59 @@ int main() {
 
 	// Inintialize scene objects.
 	auto myScene{ projectScene() };
+
 	// You can directly access specific objects in the scene using references.
 	auto& firstObject{ myScene.objects[0] };
 	auto& secondObject{ myScene.objects[1] };
 
-	// Activate the shader program.
-	myScene.program.activate();
+	// Generate and bind a custom framebuffer.
+	uint32_t myFbo;
+	glGenFramebuffers(1, &myFbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, myFbo);
+	// Render commands will no longer render to the screen.
+
+	// frame buffer setup: colorBufferID contains an image that stores color
+	uint32_t colorBufferId;
+	glGenTextures(1, &colorBufferId);
+	glBindTexture(GL_TEXTURE_2D, colorBufferId);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, window.getSize().x, window.getSize().y, 0, GL_RGB, GL_UNSIGNED_BYTE, 0); // allocate GPU memory for 2D image
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	
+	// will write to this texture's pixels
+	Mesh texturedSquare{ Mesh::square({Texture{ colorBufferId, "baseTexture" }}) };
+	
+
+	uint32_t depthBufferId;	// image that stored depth
+	glGenTextures(1, &depthBufferId);
+	glBindTexture(GL_TEXTURE_2D, depthBufferId);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, window.getSize().x, window.getSize().y, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+	// Bind the two textures as the write-destinations for color and depth.
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorBufferId, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthBufferId, 0);
+	
+	myScene.program.activate(); // Activate the shader program, future draw calls will use this
+	
 
 	// Ready, set, go!
 	bool running{ true };
 	sf::Clock c;
 
-	// Set background color
-	glClearColor(0.52f, 0.73f, 0.98f, 1.0f);  // sky blue
-
 	glm::vec3 cameraPos{ glm::vec3{ 0, 50, 70 } };	// camera position
 	glm::mat4 camera{ glm::lookAt(cameraPos, glm::vec3{ 0, 0, 0 }, glm::vec3{ 0, 1, 0 }) };	// camera matrix
 	glm::mat4 perspective{ glm::perspective(glm::radians(45.0f), static_cast<float>(window.getSize().x) / window.getSize().y, 0.1f, 200.0f) };  // perspective matrix
-	
+	glm::mat4 orthographic = glm::ortho(
+		-80.0f * static_cast<float>(window.getSize().x) / window.getSize().y,
+		80.0f * static_cast<float>(window.getSize().x) / window.getSize().y,
+		-80.0f,
+		80.0f,
+		0.1f,
+		500.0f
+	);
+
 	glm::vec3 target{ 0.0f, 0.0f, 0.0f };   // where camera looks at
 
 	// states
@@ -263,6 +315,8 @@ int main() {
 	
 	auto last{ c.getElapsedTime() };
 	while (window.isOpen()) {
+
+		
 
 		// Check for events.
 		while (const std::optional event{ window.pollEvent() }) {
@@ -411,13 +465,6 @@ int main() {
 		// FPS calculation.
 		std::cout << 1 / diff.asSeconds() << " FPS " << std::endl;
 #endif
-
-		glm::mat4 camera{ glm::lookAt(cameraPos, target, glm::vec3{ 0, 1, 0 }) }; // cam
-
-		myScene.program.setUniform("view", camera);
-		myScene.program.setUniform("projection", perspective);
-		myScene.program.setUniform("cameraPos", cameraPos);
-
 		
 		if (isNight) {
 			// ---- Lighting uniforms ----
@@ -496,15 +543,41 @@ int main() {
 		
 		firstObject.hasNormalMap = false;
 		secondObject.hasNormalMap = true;
+
+		// PASS 1: Render scene from top-down camera into minimap FBO
+		glBindFramebuffer(GL_FRAMEBUFFER, myFbo);
+		glClearColor(0.52f, 0.73f, 0.98f, 1.0f);  // sky blue background color
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear the OpenGL "context".
 		
-		// Clear the OpenGL "context".
+		// set camera position and view mmtrix to be above the bird
+		glm::vec3 center = firstObject.position;          // bird position
+		glm::vec3 miniPos = center + glm::vec3(0, 200, 0);  // above bird
+
+		glm::mat4 miniView{ glm::lookAt(miniPos, center, glm::vec3{ 0, 0, -1 }) }; // cam/view matrix
+		myScene.program.setUniform("view", miniView);
+		myScene.program.setUniform("projection", orthographic);
+		myScene.program.setUniform("cameraPos", miniPos);
+		renderScene(myScene, myScene.program);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+		// PASS 2: Draw minimap
+		glClearColor(0.52f, 0.73f, 0.98f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		// Render the scene objects.
-		for (auto& o : myScene.objects) {
-			myScene.program.setUniform("hasNormalMap", o.hasNormalMap);
-			o.drawObject(myScene.program);
-		}
+		ShaderProgram clipSpaceNoLightingProgram = clipSpaceNoLightingProgramShader();
+		clipSpaceNoLightingProgram.activate();	// shader has no lighting and adjusts scale/offset of minimap
+		texturedSquare.drawMesh(clipSpaceNoLightingProgram); // render minimap to screen
+		
+		// PASS 3: render scene from actual camera's POV with lighting and transforms
+		myScene.program.activate();
+		camera = glm::lookAt(cameraPos, target, glm::vec3{ 0, 1, 0 }); // cam/view matrix
+		myScene.program.setUniform("view", camera);
+		myScene.program.setUniform("projection", perspective);
+		myScene.program.setUniform("cameraPos", cameraPos);
+		renderScene(myScene, myScene.program);
+
 		window.display();
+
+		
 	}
 
 	return 0;
