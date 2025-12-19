@@ -9,11 +9,13 @@ layout (location=3) in vec3 vTangent;
 uniform mat4 projection;
 uniform mat4 view;
 uniform mat4 model;
+uniform mat4 lightSpaceMatrix;
 
 out vec2 TexCoord;
-out mat3 TBN;   // need to pass to fragment shader to sample texture
+out mat3 TBN;           // need to pass to fragment shader to sample texture
 out vec3 FragWorldPos;
 out vec3 Normal;
+out vec4 FragLightPos;
 
 void main() {
     // Transform the vertex position from local space to clip space.
@@ -29,6 +31,8 @@ void main() {
     // tangent -> world space
     vec3 Bitangent = normalize(cross(Normal, Tangent));
     TBN = mat3(Tangent, Bitangent, Normal);
+
+    FragLightPos = lightSpaceMatrix * model * vec4(vPosition, 1.0);
     
     // TODO: transform the vertex position into world space, and assign it to FragWorldPos.
     FragWorldPos = vec3(model * vec4(vPosition, 1.0));

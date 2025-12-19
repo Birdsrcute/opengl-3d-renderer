@@ -64,6 +64,18 @@ ShaderProgram texturingShader() {
 	return shader;
 }
 
+ShaderProgram depthShader() {
+	ShaderProgram shader{};
+	try {
+		shader.load("shaders/shadow_shader.vert", "shaders/shadow_shader.frag");
+	}
+	catch (std::runtime_error& e) {
+		std::cout << "ERROR: " << e.what() << std::endl;
+		exit(1);
+	}
+	return shader;
+}
+
 ShaderProgram clipSpaceNoLightingProgramShader() {
 	ShaderProgram shader{};
 	try {
@@ -226,8 +238,9 @@ Scene projectScene() {
 
 void renderScene(Scene& myScene, ShaderProgram& program) {
 	for (auto& o : myScene.objects) {
-		myScene.program.setUniform("hasNormalMap", o.hasNormalMap);
-		o.drawObject(myScene.program);
+		program.setUniform("hasNormalMap", o.hasNormalMap);
+		program.setUniform("hasSpecularMap", o.hasSpecularMap);
+		o.drawObject(program);
 	}
 }
 
@@ -287,12 +300,35 @@ int main() {
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorBufferId, 0);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthBufferId, 0);
 	
-	myScene.program.activate(); // Activate the shader program, future draw calls will use this
 	
+	
+	// Generate and bind a depth framebuffer for the "shadow map"
+	uint32_t shadowFbo;
+	glGenFramebuffers(1, &shadowFbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, shadowFbo);
+
+	uint32_t shadowDepthID;
+	glGenTextures(1, &shadowDepthID);
+	glBindTexture(GL_TEXTURE_2D, shadowDepthID);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, window.getSize().x, window.getSize().y, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, shadowDepthID, 0);
+	
+	// depth only fbo
+	glDrawBuffer(GL_NONE);
+	glReadBuffer(GL_NONE);
+
+	myScene.program.activate(); // Activate the shader program, future draw calls will use this
+
 
 	// Ready, set, go!
 	bool running{ true };
 	sf::Clock c;
+
+	ShaderProgram clipSpaceNoLightingProgram = clipSpaceNoLightingProgramShader();
+	ShaderProgram depthShaderProgram = depthShader();
 
 	glm::vec3 cameraPos{ glm::vec3{ 0, 50, 70 } };	// camera position
 	glm::mat4 camera{ glm::lookAt(cameraPos, glm::vec3{ 0, 0, 0 }, glm::vec3{ 0, 1, 0 }) };	// camera matrix
@@ -465,7 +501,46 @@ int main() {
 		// FPS calculation.
 		std::cout << 1 / diff.asSeconds() << " FPS " << std::endl;
 #endif
+
+		glm::vec3 lightDir = glm::normalize(glm::vec3(-0.35f, -0.75f, -0.55f));
 		
+		// ---- Lighting uniforms ----
+		myScene.program.setUniform("ambientColor", glm::vec3(0.15f, 0.15f, 0.15f));
+
+		// Direction the light points * toward * the scene
+		myScene.program.setUniform("directionalLight",
+			glm::normalize(glm::vec3(-0.35f, -0.75f, -0.55f)));
+
+		myScene.program.setUniform("directionalColor",
+			glm::vec3(1.0f, 0.98f, 0.92f));
+
+		// ---- Material: (ka, kd, ks, shininess) ----
+		myScene.program.setUniform("material",
+			glm::vec4(
+				0.3f,   // ambient strength
+				0.8f,   // diffuse strength
+				0.4f,   // specular strength
+				1.0f   // shininess
+			)
+		);
+
+		myScene.program.setUniform("attenuationValues",
+			glm::vec3(
+				1.0f,    // constant
+				0.045f,   // linear
+				0.0075f   // quadratic
+			)
+		);
+
+		myScene.program.setUniform("lightPosition",
+			glm::vec3(
+				-10.0f,
+				4.0f,
+				-30.0f
+			)
+		);
+
+		/*
 		if (isNight) {
 			// ---- Lighting uniforms ----
 			myScene.program.setUniform("ambientColor", glm::vec3(0.1f, 0.2f, 0.2f));
@@ -517,7 +592,7 @@ int main() {
 			// ---- Material: (ka, kd, ks, shininess) ----
 			myScene.program.setUniform("material",
 				glm::vec4(
-					0.5f,   // ambient strength
+					0.3f,   // ambient strength
 					0.8f,   // diffuse strength
 					0.4f,   // specular strength
 					1.0f   // shininess
@@ -534,20 +609,42 @@ int main() {
 
 			myScene.program.setUniform("lightPosition",
 				glm::vec3(
-					5.0f,
-					5.0f,
+					20.0f,
+					10.0f,
 					5.0f
 				)
 			);
 		}
-		
+		*/
 		firstObject.hasNormalMap = false;
 		secondObject.hasNormalMap = true;
+		firstObject.hasSpecularMap = true;
+		firstObject.hasSpecularMap = false;
 
-		// PASS 1: Render scene from top-down camera into minimap FBO
+		// PASS 1: Render scene from light POV and make shadow map
+		glBindFramebuffer(GL_FRAMEBUFFER, shadowFbo);
+		glClear(GL_DEPTH_BUFFER_BIT); // Clear the OpenGL "context".
+
+		depthShaderProgram.activate();
+
+		// for directional light, the light source is far away in the opposite direction
+		glm::vec3 lightPosForShadow = glm::vec3(0.0f) - lightDir * 200.0f;
+		glm::mat4 lightView = glm::lookAt(lightPosForShadow, glm::vec3(0.0f), glm::vec3(0, 1, 0));
+		glm::mat4 lightProj = glm::ortho(-120.f, 120.f, -120.f, 120.f, 0.1f, 500.f);
+		glm::mat4 lightSpaceMatrix = lightProj * lightView;
+
+		depthShaderProgram.setUniform("lightSpaceMatrix", lightSpaceMatrix);
+
+		renderScene(myScene, depthShaderProgram);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+		// PASS 2: Render scene from top-down camera into minimap FBO
+		myScene.program.activate();
 		glBindFramebuffer(GL_FRAMEBUFFER, myFbo);
+		glViewport(0, 0, window.getSize().x, window.getSize().y);
 		glClearColor(0.52f, 0.73f, 0.98f, 1.0f);  // sky blue background color
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear the OpenGL "context".
+		glEnable(GL_DEPTH_TEST);
 		
 		// set camera position and view mmtrix to be above the bird
 		glm::vec3 center = firstObject.position;          // bird position
@@ -558,22 +655,48 @@ int main() {
 		myScene.program.setUniform("projection", orthographic);
 		myScene.program.setUniform("cameraPos", miniPos);
 		renderScene(myScene, myScene.program);
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-		// PASS 2: Draw minimap
-		glClearColor(0.52f, 0.73f, 0.98f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		ShaderProgram clipSpaceNoLightingProgram = clipSpaceNoLightingProgramShader();
-		clipSpaceNoLightingProgram.activate();	// shader has no lighting and adjusts scale/offset of minimap
-		texturedSquare.drawMesh(clipSpaceNoLightingProgram); // render minimap to screen
 		
 		// PASS 3: render scene from actual camera's POV with lighting and transforms
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glViewport(0, 0, window.getSize().x, window.getSize().y);
+		glEnable(GL_DEPTH_TEST);
+		
+		glClearColor(0.52f, 0.73f, 0.98f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
 		myScene.program.activate();
+
+		myScene.program.setUniform("shadowMap", 5);
+
+		// bind shadow map for sampling
+		glActiveTexture(GL_TEXTURE5);
+		glBindTexture(GL_TEXTURE_2D, shadowDepthID);
+		myScene.program.setUniform("shadowMap", 5);
+
 		camera = glm::lookAt(cameraPos, target, glm::vec3{ 0, 1, 0 }); // cam/view matrix
 		myScene.program.setUniform("view", camera);
 		myScene.program.setUniform("projection", perspective);
 		myScene.program.setUniform("cameraPos", cameraPos);
+		myScene.program.setUniform("lightSpaceMatrix", lightSpaceMatrix);
 		renderScene(myScene, myScene.program);
+		
+
+		// PASS 4: Draw minimap over
+		glDisable(GL_DEPTH_TEST);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glViewport(0, 0, window.getSize().x, window.getSize().y);
+		
+		clipSpaceNoLightingProgram.activate();	// shader has no lighting and adjusts scale/offset of minimap
+
+		// bind the minimap texture for sampling
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, colorBufferId);
+		clipSpaceNoLightingProgram.setUniform("baseTexture", 0);
+		texturedSquare.drawMesh(clipSpaceNoLightingProgram); // render minimap to screen
+		glEnable(GL_DEPTH_TEST);
+
+		
+		
 
 		window.display();
 

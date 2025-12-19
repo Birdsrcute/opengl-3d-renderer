@@ -39,6 +39,7 @@ public:
 	std::string name{};
 
 	bool hasNormalMap;
+	bool hasSpecularMap;
 
 	// Construct a 4x4 model matrix from the object's position, orientation, scale, center, and base transform.
 	glm::mat4 buildModelMatrix() const;
