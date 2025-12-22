@@ -14,6 +14,8 @@ in vec4 FragLightPos;
 
 uniform vec3 attenuationValues;
 
+uniform bool enableShadows;
+
 // The mesh's base (diffuse) texture.
 uniform sampler2D baseTexture;
 
@@ -47,10 +49,10 @@ uniform bool hasNormalMap;
 
 float ShadowCalculation(vec4 fragPosLightSpace)
 {
-    // 1. Perspective divide: from clip space to NDC (-1 to 1)
+    // 1. dividing by w makes NDC (-1 to 1)
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
 
-    // 2. Transform from NDC (-1..1)  texture coords (0..1)
+    // 2. Transform from NDC (-1..1) to texture coords (0..1)
     projCoords = projCoords * 0.5 + 0.5;
 
     // 3. Get depth of current fragment from light's POV
@@ -60,8 +62,7 @@ float ShadowCalculation(vec4 fragPosLightSpace)
     float closestDepth = texture(shadowMap, projCoords.xy).r;
 
     // 5. Shadow test
-    float bias = 0.005;  // prevents shadow acne
-    float shadow = currentDepth - bias > closestDepth ? 1.0 : 0.0;
+    float shadow = currentDepth > closestDepth ? 1.0 : 0.0;
 
     // 6. If outside the shadow map, don't shadow
     if (projCoords.z > 1.0)
@@ -149,15 +150,21 @@ void main() {
     vec3 pointLightIntensity = attenuation * (pointDiffuseIntensity + pointSpecularIntensity);
     vec3 dirLightIntensity = diffuseIntensity + specularIntensity;
     
-    vec3 lightIntensity = ambientIntensity + pointLightIntensity + dirLightIntensity;
+    float shadow = 0.0;
+    if (enableShadows) {
+        shadow = ShadowCalculation(FragLightPos);
+    }
     
-   float shadow = ShadowCalculation(FragLightPos);
+    vec3 albedo = texture(baseTexture, TexCoord).rgb;
 
-    vec3 lighting =
+    vec3 lightingNoTex =
         ambientIntensity +
-        pointLightIntensity +                           // point light NOT shadowed by this map
-        (1.0 - shadow) * dirLightIntensity;             // directional light shadowed
+        pointLightIntensity +
+        (1.0 - shadow * 0.65) * dirLightIntensity;
 
-FragColor = vec4(lighting, 1.0) * texture(baseTexture, TexCoord);
+    // only tint the ambient+diffuse part; keep specular untouched
+    FragColor = vec4(albedo * (ambientIntensity + (pointLightIntensity + (1.0 - shadow * 0.65) * diffuseIntensity))
+                     + (pointSpecularIntensity * attenuation + (1.0 - shadow * 0.65) * specularIntensity),
+                     1.0);
 
 }

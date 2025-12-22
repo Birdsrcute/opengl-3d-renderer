@@ -27,7 +27,6 @@ void main() {
     mat4 normalMatrix = transpose(inverse(model));
     Normal = normalize(mat3(normalMatrix) * vNormal);
     vec3 Tangent = normalize(mat3(normalMatrix) * vTangent);
-    Tangent = normalize(Tangent - dot(Tangent, Normal) * Normal);
     // tangent -> world space
     vec3 Bitangent = normalize(cross(Normal, Tangent));
     TBN = mat3(Tangent, Bitangent, Normal);

@@ -169,6 +169,7 @@ Scene lifeOfPi() {
 	return scene;
 }
 
+/*
 Scene lovebird() {
 	Scene scene{ texturingShader() };
 
@@ -187,6 +188,7 @@ Scene lovebird() {
 	//scene.objects.push_back(std::move(tiger));
 	return scene;
 }
+*/
 
 Scene projectScene() {
 	Scene scene{ phongLightingShader() };
@@ -206,14 +208,6 @@ Scene projectScene() {
 	hinge_wing_R.center = glm::vec3{ -75.0f, 250.0f, 65.0f };
 	lovebird.children.push_back(std::move(hinge_wing_R));
 
-	/*
-	auto test{ assimpLoad("models/cube.obj", true) };
-	
-	test.scale = glm::vec3{ 50.0f, 50.0f, 50.0f };
-	test.position = glm::vec3{ 75.0f, 250.0f, 65.0f };      // start at bird origin
-	lovebird.children.push_back(std::move(test));
-	*/
-
 	// Move the lovebird into the scene list.
 	scene.objects.push_back(std::move(lovebird));
 
@@ -225,6 +219,7 @@ Scene projectScene() {
 	// Move the city into the scene list.
 	scene.objects.push_back(std::move(city));
 
+	/*
 	// load car
 	auto car1{ assimpLoad("models/cars/car_1.fbx", true) };
 	car1.position = glm::vec3{ 0, -0.7, 0 };
@@ -232,6 +227,7 @@ Scene projectScene() {
 
 	// Move the car into the scene list.
 	scene.objects.push_back(std::move(car1));
+	*/
 
 	return scene;
 }
@@ -271,13 +267,13 @@ int main() {
 	auto& firstObject{ myScene.objects[0] };
 	auto& secondObject{ myScene.objects[1] };
 
-	// Generate and bind a custom framebuffer.
+	// Generate and bind a custom framebuffer for the minimap
 	uint32_t myFbo;
 	glGenFramebuffers(1, &myFbo);
 	glBindFramebuffer(GL_FRAMEBUFFER, myFbo);
 	// Render commands will no longer render to the screen.
 
-	// frame buffer setup: colorBufferID contains an image that stores color
+	// creating a color texture to store rendered colors
 	uint32_t colorBufferId;
 	glGenTextures(1, &colorBufferId);
 	glBindTexture(GL_TEXTURE_2D, colorBufferId);
@@ -300,28 +296,31 @@ int main() {
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorBufferId, 0);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthBufferId, 0);
 	
-	
-	
 	// Generate and bind a depth framebuffer for the "shadow map"
 	uint32_t shadowFbo;
 	glGenFramebuffers(1, &shadowFbo);
 	glBindFramebuffer(GL_FRAMEBUFFER, shadowFbo);
+	int shadowWidth = 2048;		// shadow map will be 2048x2048
+	int shadowHeight = 2048;	
 
 	uint32_t shadowDepthID;
 	glGenTextures(1, &shadowDepthID);
 	glBindTexture(GL_TEXTURE_2D, shadowDepthID);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, window.getSize().x, window.getSize().y, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, shadowWidth, shadowHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+	float borderColor[] = { 1.f, 1.f, 1.f, 1.f };
+	glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, shadowDepthID, 0);
 	
-	// depth only fbo
+	// depth writing only 
 	glDrawBuffer(GL_NONE);
 	glReadBuffer(GL_NONE);
 
 	myScene.program.activate(); // Activate the shader program, future draw calls will use this
-
 
 	// Ready, set, go!
 	bool running{ true };
@@ -344,15 +343,12 @@ int main() {
 
 	glm::vec3 target{ 0.0f, 0.0f, 0.0f };   // where camera looks at
 
-	// states
 	bool isFlying = false;	
-	bool isNight = false;
-	bool nWasPressed = false;
+	//bool isNight = false;
+	//bool nWasPressed = false;
 	
 	auto last{ c.getElapsedTime() };
 	while (window.isOpen()) {
-
-		
 
 		// Check for events.
 		while (const std::optional event{ window.pollEvent() }) {
@@ -366,6 +362,7 @@ int main() {
 		auto diff{ now - last };
 		last = now;
 
+		/*
 		bool nIsPressed = sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::N);
 
 		if (nIsPressed && !nWasPressed) {
@@ -373,6 +370,7 @@ int main() {
 		}
 
 		nWasPressed = nIsPressed;
+		*/
 
 		float camSpeed = 30.0f * diff.asSeconds();	// speed camera moves
 		float camRotSpeed = 1.0f * diff.asSeconds();	// speed camera rotates
@@ -380,10 +378,10 @@ int main() {
 		// panning the camera
 		// must define a forward direction relative to the ground plane & move where the camera looks at
 
-		// forward = eye (camera position) - at (target point or where camera looks at)
+		// forward dir of camera is from camera position to target
 		glm::vec3 lookDir = normalize(target - cameraPos);
 		glm::vec3 fwdFlat = glm::normalize(glm::vec3(lookDir.x, 0, lookDir.z)); // x and z are changing, but y-axis is always the same
-		glm::vec3 rightFlat = normalize(cross(fwdFlat, glm::vec3{ 0, 1, 0 })); // x and z are changing, but y-axis is always the same
+		glm::vec3 rightFlat = normalize(cross(fwdFlat, glm::vec3{ 0, 1, 0 })); 
 
 		// camera movement (WASD)
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::W)) {
@@ -486,7 +484,7 @@ int main() {
 			flapTime += diff.asSeconds();
 			float flap = std::sin(flapTime * 30.0f) * amp;
 
-			// Y-axis flap on the wings (NOT the body)
+			// Y-axis flap on the wings
 			firstObject.children[1].orientation.y = -spread + flap;
 			firstObject.children[2].orientation.y = spread - flap;
 		}
@@ -505,7 +503,7 @@ int main() {
 		glm::vec3 lightDir = glm::normalize(glm::vec3(-0.35f, -0.75f, -0.55f));
 		
 		// ---- Lighting uniforms ----
-		myScene.program.setUniform("ambientColor", glm::vec3(0.15f, 0.15f, 0.15f));
+		myScene.program.setUniform("ambientColor", glm::vec3(0.20f, 0.24f, 0.30f));
 
 		// Direction the light points * toward * the scene
 		myScene.program.setUniform("directionalLight",
@@ -517,7 +515,7 @@ int main() {
 		// ---- Material: (ka, kd, ks, shininess) ----
 		myScene.program.setUniform("material",
 			glm::vec4(
-				0.3f,   // ambient strength
+				0.45f,   // ambient strength
 				0.8f,   // diffuse strength
 				0.4f,   // specular strength
 				1.0f   // shininess
@@ -619,34 +617,35 @@ int main() {
 		firstObject.hasNormalMap = false;
 		secondObject.hasNormalMap = true;
 		firstObject.hasSpecularMap = true;
-		firstObject.hasSpecularMap = false;
+		secondObject.hasSpecularMap = false;
 
 		// PASS 1: Render scene from light POV and make shadow map
 		glBindFramebuffer(GL_FRAMEBUFFER, shadowFbo);
+		glViewport(0, 0, shadowWidth, shadowHeight);
 		glClear(GL_DEPTH_BUFFER_BIT); // Clear the OpenGL "context".
 
 		depthShaderProgram.activate();
 
 		// for directional light, the light source is far away in the opposite direction
-		glm::vec3 lightPosForShadow = glm::vec3(0.0f) - lightDir * 200.0f;
-		glm::mat4 lightView = glm::lookAt(lightPosForShadow, glm::vec3(0.0f), glm::vec3(0, 1, 0));
-		glm::mat4 lightProj = glm::ortho(-120.f, 120.f, -120.f, 120.f, 0.1f, 500.f);
+		// shadow map needs to move with the camera
+		glm::vec3 lightPosForShadow = target - lightDir * 200.0f;
+		glm::mat4 lightView = glm::lookAt(lightPosForShadow, target, glm::vec3(0, 1, 0));	// light's camera view
+		glm::mat4 lightProj = glm::ortho(-100.f, 100.f, -100.f, 100.f, 1.f, 400.f);
 		glm::mat4 lightSpaceMatrix = lightProj * lightView;
 
 		depthShaderProgram.setUniform("lightSpaceMatrix", lightSpaceMatrix);
-
 		renderScene(myScene, depthShaderProgram);
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 		// PASS 2: Render scene from top-down camera into minimap FBO
 		myScene.program.activate();
+		myScene.program.setUniform("enableShadows", false);
 		glBindFramebuffer(GL_FRAMEBUFFER, myFbo);
 		glViewport(0, 0, window.getSize().x, window.getSize().y);
 		glClearColor(0.52f, 0.73f, 0.98f, 1.0f);  // sky blue background color
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear the OpenGL "context".
 		glEnable(GL_DEPTH_TEST);
 		
-		// set camera position and view mmtrix to be above the bird
+		// set camera position and view matrix to be above the bird
 		glm::vec3 center = firstObject.position;          // bird position
 		glm::vec3 miniPos = center + glm::vec3(0, 200, 0);  // above bird
 
@@ -657,21 +656,19 @@ int main() {
 		renderScene(myScene, myScene.program);
 		
 		// PASS 3: render scene from actual camera's POV with lighting and transforms
+		
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glViewport(0, 0, window.getSize().x, window.getSize().y);
 		glEnable(GL_DEPTH_TEST);
-		
 		glClearColor(0.52f, 0.73f, 0.98f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
 		myScene.program.activate();
-
-		myScene.program.setUniform("shadowMap", 5);
+		myScene.program.setUniform("enableShadows", true);
 
 		// bind shadow map for sampling
-		glActiveTexture(GL_TEXTURE5);
+		glActiveTexture(GL_TEXTURE0 + 15);
 		glBindTexture(GL_TEXTURE_2D, shadowDepthID);
-		myScene.program.setUniform("shadowMap", 5);
+		myScene.program.setUniform("shadowMap", 15);
 
 		camera = glm::lookAt(cameraPos, target, glm::vec3{ 0, 1, 0 }); // cam/view matrix
 		myScene.program.setUniform("view", camera);
@@ -679,13 +676,11 @@ int main() {
 		myScene.program.setUniform("cameraPos", cameraPos);
 		myScene.program.setUniform("lightSpaceMatrix", lightSpaceMatrix);
 		renderScene(myScene, myScene.program);
-		
 
 		// PASS 4: Draw minimap over
 		glDisable(GL_DEPTH_TEST);
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glViewport(0, 0, window.getSize().x, window.getSize().y);
-		
 		clipSpaceNoLightingProgram.activate();	// shader has no lighting and adjusts scale/offset of minimap
 
 		// bind the minimap texture for sampling
@@ -694,13 +689,10 @@ int main() {
 		clipSpaceNoLightingProgram.setUniform("baseTexture", 0);
 		texturedSquare.drawMesh(clipSpaceNoLightingProgram); // render minimap to screen
 		glEnable(GL_DEPTH_TEST);
-
-		
-		
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, 0);
 
 		window.display();
-
-		
 	}
 
 	return 0;

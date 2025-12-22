@@ -2,6 +2,7 @@
 #include "Mesh.h"
 #include <cstdint>
 
+// creates and returns a square mesh
 Mesh Mesh::square(std::vector<Texture> textures) {
 	Mesh m{
 		{
@@ -50,7 +51,7 @@ Mesh::Mesh(const std::vector<Vertex3D> &vertices, const std::vector<uint32_t> &f
 	glVertexAttribPointer(2, 3, GL_FLOAT, false, sizeof(Vertex3D), (void*)20);
 	glEnableVertexAttribArray(2);
 
-	// attribute 3: tangent (tx, ty, tz, tw)
+	// attribute 3: tangent (tx, ty, tz)
 	glVertexAttribPointer(3, 3, GL_FLOAT, false, sizeof(Vertex3D), (void*)32);
 	glEnableVertexAttribArray(3);
 

@@ -69,11 +69,6 @@ Mesh fromAssimpMesh(const aiMesh* mesh, const aiScene* scene, const std::filesys
 		vertex.tx = tangent.x;
 		vertex.ty = tangent.y;
 		vertex.tz = tangent.z;
-
-		// handedness (+1 or -1)
-		//aiVector3D c = normal ^ tangent;           // cross(n, t)
-		//vertex.tw = (c * b < 0.0f) ? -1.0f : 1.0f; // dot(c, b)
-		
 	
 		vertices.push_back(vertex);
 	}
