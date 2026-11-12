@@ -62,7 +62,8 @@ float ShadowCalculation(vec4 fragPosLightSpace)
     float closestDepth = texture(shadowMap, projCoords.xy).r;
 
     // 5. Shadow test
-    float shadow = currentDepth > closestDepth ? 1.0 : 0.0;
+    float bias = 0.001;
+    float shadow = currentDepth - bias > closestDepth ? 1.0 : 0.0;
 
     // 6. If outside the shadow map, don't shadow
     if (projCoords.z > 1.0)

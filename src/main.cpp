@@ -1,6 +1,11 @@
 /**
-* Starter code for CECS 449 final project.
-* Major modules:
+*
+*	CECS 449 Computer Graphics Project
+*
+*	This is an interactive 3D scene built with C++ and OpenGL. It is built upon
+*   course-provided starter code and personal code extension.
+*	
+*	Major modules:
 *	Mesh: an OpenGL VAO associated with one or more textures. Transfers vertices from RAM to VRAM. (INCOMPLETE)
 *   Object3D: pairs a Mesh with world-space parameters (position, orientation, scale), and methods to manipulate
 *			  the object in world space.
@@ -9,7 +14,21 @@
 *   AssimpImport: loads an assimp model file into an hierarchical Object3D. (INCOMPLETE)
 *   Animator: a list of animations to apply over given time intervals.
 *   Main: initializes a Scene, advances Animators, and renders objects in the scene.
-*/
+*	
+*	Extension:
+*	- Circular minimap
+*	- Camera movement and controls
+*	- Hierarchical scene objects
+*	- Lovebird wing animation
+*	- Phong lighting and texture mapping
+*	- Normal mapping and shadow mapping
+*
+*	This file initializes the scene, handles user input, 
+*	updates object transformations and animations, and coordinates rendering passes.
+*	 
+*
+**/
+
 #include <glad/glad.h>
 #include <iostream>
 #include <filesystem>
@@ -331,7 +350,7 @@ int main() {
 
 	glm::vec3 cameraPos{ glm::vec3{ 0, 50, 70 } };	// camera position
 	glm::mat4 camera{ glm::lookAt(cameraPos, glm::vec3{ 0, 0, 0 }, glm::vec3{ 0, 1, 0 }) };	// camera matrix
-	glm::mat4 perspective{ glm::perspective(glm::radians(45.0f), static_cast<float>(window.getSize().x) / window.getSize().y, 0.1f, 200.0f) };  // perspective matrix
+	glm::mat4 perspective{ glm::perspective(glm::radians(45.0f), static_cast<float>(window.getSize().x) / window.getSize().y, 0.5f, 500.0f) };  // perspective matrix
 	glm::mat4 orthographic = glm::ortho(
 		-80.0f * static_cast<float>(window.getSize().x) / window.getSize().y,
 		80.0f * static_cast<float>(window.getSize().x) / window.getSize().y,
