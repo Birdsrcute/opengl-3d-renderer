@@ -212,7 +212,7 @@ Scene projectScene() {
 	scene.objects.push_back(std::move(lovebird));
 
 	// load city
-	auto city{ assimpLoad("models/city/city_scaled.fbx", true) };
+	auto city{ assimpLoad("models/city/city_fixed.fbx", true) };
 	city.position = glm::vec3{ 0, -0.7, 0 };
 	city.scale = glm::vec3{ 0.04, 0.04, 0.04 };
 
